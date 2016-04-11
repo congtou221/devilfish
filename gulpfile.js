@@ -5,6 +5,9 @@ var uglify = require('gulp-uglify');
 var browserify = require('browserify');
 var source = require('vinyl-source-stream');
 var streamify = require('gulp-streamify');
+var babelify = requrire('babelify');
+var watchify = require('watchify');
+var gutil = require('gulp-util');
 
 var production = process.env.NODE_ENV === 'production';
 
@@ -35,4 +38,35 @@ gulp.task('browserify-vendor', function(){
 		.pipe(source('vendor.bundle.js'))
 		.pipe(gulpif(production, streamify(uglify({mangle: false}))))
 		.pipe(gulp.dest('public/js'));
+})
+
+// 打包应用程序文件
+gulp.task('browserify', function(){
+	return browserify('app/main.js')
+		.external(dependencies)
+		.transform(babelify)
+		.bundle
+		.pipe(source('bundle.js'))
+		.pipe(gulpif(production, streamify(uglify({mangle: false}))))
+		.pipe(gulp.dest('public/js'));
+})
+
+// 检测文件变动，重新打包
+gulp.task('browserify-watch', ['browserify-vendor'], function(){
+	var bundler = watchify(browserify('app/main.js'), watchify.args);
+	bundler.external(dependencies);
+	bundler.on('update', rebundle);
+	return rebundle();
+
+	function rebundle(){
+		return bundler.rebundle()
+			.on('error', function(err){
+				gutil.log(gutil.colors.red(err.toString()));
+			})
+			.on('end', function(){
+				gutil.log(gutil.colors.green('Finished rebundling'))
+			})
+			.pipe(source('bundle.js'))
+			.pipe(gulp.dest('public/js/'));
+	}
 })
